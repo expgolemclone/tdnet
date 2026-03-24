@@ -254,8 +254,9 @@ async function copyToClipboard() {
     try {
         const text = await getPageText(state.pageNum);
         if (text.trim()) {
-            await navigator.clipboard.writeText(text);
-            showToast("テキストをコピーしました");
+            const quoted = text.split("\n").map(l => "> " + l).join("\n");
+            await navigator.clipboard.writeText(quoted);
+            showToast("引用としてコピーしました");
             return;
         }
         const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
