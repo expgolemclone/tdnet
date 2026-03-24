@@ -10,7 +10,9 @@ const state = {
     pageCount: 0,
     pdfDoc: null,
     rendering: false,
+    pendingRender: false,
     date: "",
+    loadId: 0,
 };
 
 // --- DOM refs ---
@@ -44,9 +46,20 @@ async function fetchList(date) {
 }
 
 // --- PDF loading ---
+let currentLoadTask = null;
+
 async function loadPdf(filename) {
+    // Cancel any in-flight PDF load
+    if (currentLoadTask) {
+        currentLoadTask.destroy();
+        currentLoadTask = null;
+    }
+
+    const myId = ++state.loadId;
+
     loading.style.display = "block";
     canvas.style.display = "none";
+    updateUI();
 
     if (state.pdfDoc) {
         state.pdfDoc.destroy();
@@ -54,7 +67,25 @@ async function loadPdf(filename) {
     }
 
     const url = `/api/pdf/${filename}`;
-    const doc = await pdfjsLib.getDocument(url).promise;
+    const task = pdfjsLib.getDocument(url);
+    currentLoadTask = task;
+
+    let doc;
+    try {
+        doc = await task.promise;
+    } catch (e) {
+        // Cancelled by a newer load — ignore
+        if (myId !== state.loadId) return;
+        throw e;
+    }
+
+    // A newer load was started while we were fetching — discard this result
+    if (myId !== state.loadId) {
+        doc.destroy();
+        return;
+    }
+
+    currentLoadTask = null;
     state.pdfDoc = doc;
     state.pageCount = doc.numPages;
     state.pageNum = 1;
@@ -66,7 +97,11 @@ async function loadPdf(filename) {
 }
 
 async function renderPage() {
-    if (!state.pdfDoc || state.rendering) return;
+    if (!state.pdfDoc) return;
+    if (state.rendering) {
+        state.pendingRender = true;
+        return;
+    }
     state.rendering = true;
 
     const page = await state.pdfDoc.getPage(state.pageNum);
@@ -84,6 +119,11 @@ async function renderPage() {
     state.rendering = false;
 
     updateUI();
+
+    if (state.pendingRender) {
+        state.pendingRender = false;
+        renderPage();
+    }
 }
 
 // --- Navigation ---
@@ -158,6 +198,36 @@ async function loadDate(date) {
     await loadPdf(items[0].pdf);
 }
 
+// --- Goto file by number ---
+const gotoOverlay = $("#goto-overlay");
+const gotoInput = $("#goto-input");
+
+function showGoto() {
+    gotoInput.value = "";
+    gotoOverlay.style.display = "block";
+    gotoInput.focus();
+}
+
+function hideGoto() {
+    gotoOverlay.style.display = "none";
+}
+
+function gotoFile(n) {
+    if (n < 1 || n > state.files.length) return;
+    state.fileIdx = n - 1;
+    loadPdf(state.files[state.fileIdx].pdf);
+}
+
+gotoInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+        const n = parseInt(gotoInput.value, 10);
+        hideGoto();
+        if (!isNaN(n)) gotoFile(n);
+    } else if (e.key === "Escape") {
+        hideGoto();
+    }
+});
+
 // --- Keyboard ---
 document.addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT") return;
@@ -174,6 +244,9 @@ document.addEventListener("keydown", (e) => {
             break;
         case "h":
             prevFile();
+            break;
+        case "o":
+            showGoto();
             break;
     }
 });
