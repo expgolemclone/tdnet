@@ -14,6 +14,19 @@ _cache: OrderedDict[str, list[dict]] = OrderedDict()
 
 _SAFE_PDF_NAME = re.compile(r"^[A-Za-z0-9_-]+\.pdf$")
 
+_ticker_filter: set[str] | None = None
+
+
+def set_ticker_filter(tickers: set[str] | None) -> None:
+    global _ticker_filter
+    _ticker_filter = tickers
+
+
+def _apply_filter(items: list[dict]) -> list[dict]:
+    if _ticker_filter is None:
+        return items
+    return [item for item in items if item.get("code", "")[:4] in _ticker_filter]
+
 
 def cache_set(date: str, items: list[dict]) -> None:
     _cache[date] = items
@@ -38,7 +51,7 @@ def api_list():
     else:
         _cache.move_to_end(date)
 
-    return jsonify(_cache[date])
+    return jsonify(_apply_filter(_cache[date]))
 
 
 @app.route("/api/pdf/<filename>")

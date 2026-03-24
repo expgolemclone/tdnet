@@ -8,6 +8,7 @@ dependencies = [
     "requests>=2.31,<3",
     "flask>=3.0,<4",
     "truststore>=0.10,<1",
+    "xlrd>=2.0,<3",
 ]
 
 [tool.hatch.build.targets.wheel]
