@@ -439,6 +439,7 @@ document.addEventListener("keydown", (e) => {
             prevFile();
             break;
         case "o":
+            e.preventDefault();
             showGoto();
             break;
         case ":":
