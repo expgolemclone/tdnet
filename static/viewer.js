@@ -101,6 +101,8 @@ async function loadPdf(filename) {
     loading.style.display = "none";
     canvas.style.display = "block";
 
+    state.rendering = false;
+    state.pendingRender = false;
     await renderPage();
 }
 
@@ -112,20 +114,24 @@ async function renderPage() {
     }
     state.rendering = true;
 
-    const page = await state.pdfDoc.getPage(state.pageNum);
+    try {
+        const page = await state.pdfDoc.getPage(state.pageNum);
 
-    // Fit to viewport width
-    const viewerWidth = $("#viewer").clientWidth - 16;
-    const unscaled = page.getViewport({ scale: 1 });
-    const scale = viewerWidth / unscaled.width;
-    const viewport = page.getViewport({ scale });
+        // Fit to viewport width
+        const viewerWidth = $("#viewer").clientWidth - 16;
+        const unscaled = page.getViewport({ scale: 1 });
+        const scale = viewerWidth / unscaled.width;
+        const viewport = page.getViewport({ scale });
 
-    canvas.height = viewport.height;
-    canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
 
-    await page.render({ canvasContext: ctx, viewport }).promise;
+        await page.render({ canvasContext: ctx, viewport }).promise;
+    } catch (e) {
+        console.error("Render failed:", e);
+    }
+
     state.rendering = false;
-
     updateUI();
 
     if (state.pendingRender) {
