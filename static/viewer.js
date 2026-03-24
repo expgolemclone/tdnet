@@ -285,6 +285,7 @@ function execCmd(raw) {
 }
 
 cmdInput.addEventListener("keydown", (e) => {
+    e.stopPropagation();
     if (e.key === "Enter") {
         const val = cmdInput.value;
         hideCmd();
