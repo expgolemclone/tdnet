@@ -242,14 +242,26 @@ gotoInput.addEventListener("keydown", (e) => {
     }
 });
 
-// --- Copy canvas to clipboard ---
-async function copyCanvasToClipboard() {
+// --- Copy to clipboard (text-first, image fallback) ---
+async function getPageText(pageNum) {
+    const page = await state.pdfDoc.getPage(pageNum);
+    const content = await page.getTextContent();
+    return content.items.map((item) => item.str).join("");
+}
+
+async function copyToClipboard() {
     if (!state.pdfDoc) return;
     try {
+        const text = await getPageText(state.pageNum);
+        if (text.trim()) {
+            await navigator.clipboard.writeText(text);
+            showToast("テキストをコピーしました");
+            return;
+        }
         const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
         if (!blob) return;
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-        showToast("コピーしました");
+        showToast("画像をコピーしました");
     } catch (e) {
         console.error("Clipboard write failed:", e);
         showToast("コピー失敗");
@@ -464,7 +476,7 @@ document.addEventListener("keydown", (e) => {
             break;
         case "y":
             if (lastKey === "y" && now - lastKeyTime < 500) {
-                copyCanvasToClipboard();
+                copyToClipboard();
                 lastKey = "";
                 return;
             }
