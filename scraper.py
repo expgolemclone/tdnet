@@ -22,7 +22,11 @@ def fetch_disclosures(date: str) -> list[dict]:
         return []
 
     pager_items = info_table.find_all("div", {"class": "pager-M"})
-    max_page = max((int(d.string) for d in pager_items if d.string), default=1)
+    page_nums = []
+    for d in pager_items:
+        if d.string and d.string.strip().isdigit():
+            page_nums.append(int(d.string.strip()))
+    max_page = max(page_nums, default=1)
 
     # Scrape each page
     all_items = []

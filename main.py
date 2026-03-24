@@ -2,8 +2,13 @@ import argparse
 import webbrowser
 from datetime import date
 
+import truststore
+
+truststore.inject_into_ssl()
+
 from config import DEFAULT_PORT
-from server import app
+from server import app, cache_set
+from scraper import fetch_disclosures
 
 
 def main():
@@ -14,11 +19,10 @@ def main():
     args = parser.parse_args()
 
     # Pre-fetch the disclosure list for the specified date
-    from scraper import fetch_disclosures
-    from server import _cache
     print(f"Fetching disclosures for {args.date}...")
-    _cache[args.date] = fetch_disclosures(args.date)
-    print(f"Found {len(_cache[args.date])} items.")
+    items = fetch_disclosures(args.date)
+    cache_set(args.date, items)
+    print(f"Found {len(items)} items.")
 
     url = f"http://localhost:{args.port}"
     print(f"Starting server at {url}")

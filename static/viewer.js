@@ -25,11 +25,17 @@ const datePicker = $("#date-picker");
 
 // --- Date helpers ---
 function dateStr(d) {
-    return d.toISOString().slice(0, 10).replace(/-/g, "");
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}${m}${day}`;
 }
 
 function dateISO(d) {
-    return d.toISOString().slice(0, 10);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
 }
 
 function shiftDate(delta) {
@@ -325,12 +331,21 @@ function renderTree() {
         row.className = "tree-row";
         if (fileIdx === state.fileIdx) row.classList.add("active");
         if (vi === treeCursor) row.classList.add("selected");
-        row.innerHTML =
-            `<span class="tr-idx">${fileIdx + 1}</span>` +
-            `<span class="tr-time">${f.time || ""}</span>` +
-            `<span class="tr-code">${f.code || ""}</span>` +
-            `<span class="tr-name">${f.name || ""}</span>` +
-            `<span class="tr-title">${f.title || ""}</span>`;
+
+        const spans = [
+            ["tr-idx", String(fileIdx + 1)],
+            ["tr-time", f.time || ""],
+            ["tr-code", f.code || ""],
+            ["tr-name", f.name || ""],
+            ["tr-title", f.title || ""],
+        ];
+        for (const [cls, text] of spans) {
+            const span = document.createElement("span");
+            span.className = cls;
+            span.textContent = text;
+            row.appendChild(span);
+        }
+
         row.addEventListener("click", () => {
             hideTree();
             gotoFile(fileIdx + 1);
@@ -467,8 +482,12 @@ datePicker.addEventListener("change", () => {
 });
 
 // --- Window resize ---
+let resizeTimer = 0;
 window.addEventListener("resize", () => {
-    if (state.pdfDoc) renderPage();
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+        if (state.pdfDoc) renderPage();
+    }, 150);
 });
 
 // --- Init ---

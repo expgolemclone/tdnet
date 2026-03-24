@@ -1,13 +1,25 @@
-import requests as req
+import re
+from collections import OrderedDict
+
+import requests
 from flask import Flask, jsonify, request, Response, send_from_directory
 
-from config import TDNET_BASE_URL
+from config import TDNET_BASE_URL, CACHE_MAX_SIZE
 from scraper import fetch_disclosures
 
 app = Flask(__name__, static_folder="static")
 
-# In-memory cache: date -> list of disclosures
-_cache: dict[str, list[dict]] = {}
+# LRU cache: date -> list of disclosures
+_cache: OrderedDict[str, list[dict]] = OrderedDict()
+
+_SAFE_PDF_NAME = re.compile(r"^[A-Za-z0-9_-]+\.pdf$")
+
+
+def cache_set(date: str, items: list[dict]) -> None:
+    _cache[date] = items
+    _cache.move_to_end(date)
+    while len(_cache) > CACHE_MAX_SIZE:
+        _cache.popitem(last=False)
 
 
 @app.route("/")
@@ -22,23 +34,32 @@ def api_list():
         return jsonify({"error": "date param required (yyyymmdd)"}), 400
 
     if date not in _cache:
-        _cache[date] = fetch_disclosures(date)
+        cache_set(date, fetch_disclosures(date))
+    else:
+        _cache.move_to_end(date)
 
     return jsonify(_cache[date])
 
 
 @app.route("/api/pdf/<filename>")
 def proxy_pdf(filename):
-    if not filename.endswith(".pdf"):
+    if not _SAFE_PDF_NAME.match(filename):
         return "Not found", 404
 
     url = TDNET_BASE_URL + filename
-    resp = req.get(url, timeout=30, stream=True)
+    resp = requests.get(url, timeout=30, stream=True)
     if resp.status_code != 200:
+        resp.close()
         return "Not found", 404
 
+    def generate():
+        try:
+            yield from resp.iter_content(chunk_size=8192)
+        finally:
+            resp.close()
+
     return Response(
-        resp.iter_content(chunk_size=8192),
+        generate(),
         content_type="application/pdf",
         headers={"Cache-Control": "public, max-age=86400"},
     )
