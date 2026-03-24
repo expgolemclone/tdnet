@@ -9,6 +9,14 @@ from scraper import fetch_disclosures
 
 app = Flask(__name__, static_folder="static")
 
+
+@app.after_request
+def no_cache_static(response):
+    if response.content_type and ("javascript" in response.content_type or "css" in response.content_type):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 # LRU cache: date -> list of disclosures
 _cache: OrderedDict[str, list[dict]] = OrderedDict()
 
