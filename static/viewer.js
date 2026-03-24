@@ -228,9 +228,30 @@ gotoInput.addEventListener("keydown", (e) => {
     }
 });
 
+// --- Copy canvas to clipboard ---
+async function copyCanvasToClipboard() {
+    if (!state.pdfDoc) return;
+    const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
+    if (!blob) return;
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    showToast("コピーしました");
+}
+
+function showToast(msg) {
+    const el = $("#copy-toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    setTimeout(() => el.classList.remove("show"), 1200);
+}
+
 // --- Keyboard ---
+let lastKey = "";
+let lastKeyTime = 0;
+
 document.addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT") return;
+
+    const now = Date.now();
 
     switch (e.key) {
         case "j":
@@ -248,7 +269,17 @@ document.addEventListener("keydown", (e) => {
         case "o":
             showGoto();
             break;
+        case "y":
+            if (lastKey === "y" && now - lastKeyTime < 500) {
+                copyCanvasToClipboard();
+                lastKey = "";
+                return;
+            }
+            break;
     }
+
+    lastKey = e.key;
+    lastKeyTime = now;
 });
 
 // --- Date controls ---

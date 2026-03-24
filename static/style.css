@@ -184,3 +184,23 @@ kbd {
 #goto-input:focus {
     border-color: #e94560;
 }
+
+#copy-toast {
+    position: fixed;
+    bottom: 3rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #533483;
+    color: #e0e0e0;
+    padding: 0.4rem 1.2rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 100;
+}
+
+#copy-toast.show {
+    opacity: 1;
+}

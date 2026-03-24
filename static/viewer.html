@@ -35,11 +35,32 @@
             <kbd>j</kbd><kbd>k</kbd> ページ送り
             <kbd>h</kbd><kbd>l</kbd> ファイル切替
             <kbd>o</kbd> 番号ジャンプ
+            <kbd>yy</kbd> コピー
+            <kbd>:tree</kbd> 一覧
         </span>
     </footer>
 
+    <div id="copy-toast"></div>
+
     <div id="goto-overlay" style="display:none;">
         <input type="text" id="goto-input" placeholder="#">
+    </div>
+
+    <div id="cmd-overlay" style="display:none;">
+        <span id="cmd-prefix">:</span>
+        <input type="text" id="cmd-input">
+    </div>
+
+    <div id="tree-overlay" style="display:none;">
+        <div id="tree-header">
+            <span id="tree-title">開示一覧</span>
+            <span id="tree-count"></span>
+            <div id="tree-filter-box" style="display:none;">
+                <span>/</span>
+                <input type="text" id="tree-filter-input">
+            </div>
+        </div>
+        <div id="tree-body"></div>
     </div>
 
     <script src="/static/viewer.js"></script>
