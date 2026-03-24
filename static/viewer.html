@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TDNet Viewer</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+    <header id="top-bar">
+        <div id="date-control">
+            <button id="prev-date" title="前日">&larr;</button>
+            <input type="date" id="date-picker">
+            <button id="next-date" title="翌日">&rarr;</button>
+        </div>
+        <div id="file-info">
+            <span id="file-index">-/-</span>
+            <span id="file-time"></span>
+            <span id="file-code"></span>
+            <span id="file-name"></span>
+            <span id="file-title"></span>
+        </div>
+    </header>
+
+    <main id="viewer">
+        <div id="loading">読み込み中...</div>
+        <canvas id="pdf-canvas"></canvas>
+        <div id="empty-msg" style="display:none;">開示情報がありません</div>
+    </main>
+
+    <footer id="bottom-bar">
+        <span id="page-info">- / -</span>
+        <span id="keyhints">
+            <kbd>j</kbd><kbd>k</kbd> ページ送り
+            <kbd>h</kbd><kbd>l</kbd> ファイル切替
+        </span>
+    </footer>
+
+    <script src="/static/viewer.js"></script>
+</body>
+</html>
