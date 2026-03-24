@@ -15,6 +15,7 @@ _cache: OrderedDict[str, list[dict]] = OrderedDict()
 _SAFE_PDF_NAME = re.compile(r"^[A-Za-z0-9_-]+\.pdf$")
 
 _ticker_filter: set[str] | None = None
+_exclude_tickers: set[str] = set()
 
 
 def set_ticker_filter(tickers: set[str] | None) -> None:
@@ -22,10 +23,20 @@ def set_ticker_filter(tickers: set[str] | None) -> None:
     _ticker_filter = tickers
 
 
+def set_exclude_tickers(tickers: set[str]) -> None:
+    global _exclude_tickers
+    _exclude_tickers = tickers
+
+
 def _apply_filter(items: list[dict]) -> list[dict]:
-    if _ticker_filter is None:
+    if _ticker_filter is None and not _exclude_tickers:
         return items
-    return [item for item in items if item.get("code", "")[:4] in _ticker_filter]
+    result = items
+    if _ticker_filter is not None:
+        result = [item for item in result if item.get("code", "")[:4] in _ticker_filter]
+    if _exclude_tickers:
+        result = [item for item in result if item.get("code", "")[:4] not in _exclude_tickers]
+    return result
 
 
 def cache_set(date: str, items: list[dict]) -> None:

@@ -9,7 +9,7 @@ truststore.inject_into_ssl()
 
 from config import DEFAULT_PORT
 from segments import fetch_jpx_segments, load_segments, save_segments
-from server import app, cache_set, set_ticker_filter
+from server import app, cache_set, set_exclude_tickers, set_ticker_filter
 from scraper import fetch_disclosures
 
 
@@ -86,6 +86,14 @@ def main():
     if ticker_filter is not None:
         set_ticker_filter(ticker_filter)
         print(f"Filter active: {len(ticker_filter)} tickers")
+
+    if not args.all:
+        segments = load_segments()
+        if segments:
+            etf_tickers = {code for code, seg in segments.items() if "ETF" in seg}
+            if etf_tickers:
+                set_exclude_tickers(etf_tickers)
+                print(f"Excluding {len(etf_tickers)} ETF/ETN tickers")
 
     # Pre-fetch the disclosure list for the specified date
     print(f"Fetching disclosures for {args.date}...")
