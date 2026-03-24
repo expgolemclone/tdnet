@@ -278,7 +278,7 @@ function hideCmd() {
 }
 
 function execCmd(raw) {
-    const cmd = raw.trim().toLowerCase();
+    const cmd = raw.trim().toLowerCase().replace(/^:/, "");
     if (cmd === "tree") {
         showTree();
     }
