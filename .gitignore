@@ -11,3 +11,8 @@
 !static/*.js
 !static/*.css
 !ticker.csv
+!hooks/
+!hooks/*.py
+!CLAUDE.md
+!.claude/
+!.claude/settings.json
