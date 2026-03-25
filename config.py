@@ -1,6 +1,7 @@
 from pathlib import Path
 
 TDNET_BASE_URL = "https://www.release.tdnet.info/inbs/"
+TDNET_EXPECTED_HOST = "www.release.tdnet.info"
 TDNET_LIST_URL = TDNET_BASE_URL + "I_list_{page:03d}_{date}.html"
 
 JPX_DATA_URL = (
@@ -12,10 +13,13 @@ DEFAULT_PORT = 8080
 CACHE_MAX_SIZE = 10
 SEGMENTS_PATH = Path(__file__).parent / "segments.json"
 
+RETRY_TOTAL = 3
+RETRY_BACKOFF = 0.5
+
 VALID_PERIODS = ("day", "week", "month", "year")
 PERIOD_DAYS = {
     "day": 1,
-    "week": 7,
-    "month": 31,
-    "year": 365,
+    "week": 5,
+    "month": 22,
+    "year": 250,
 }

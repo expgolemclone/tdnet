@@ -1,15 +1,15 @@
 import json
 from pathlib import Path
 
-import requests
 import xlrd
 
 from config import JPX_DATA_URL, SEGMENTS_PATH
+from net import session
 
 
 def fetch_jpx_segments() -> dict[str, str]:
     """Download JPX listed-company XLS and return {ticker: segment} mapping."""
-    resp = requests.get(JPX_DATA_URL, timeout=30)
+    resp = session.get(JPX_DATA_URL, timeout=30)
     resp.raise_for_status()
     book = xlrd.open_workbook(file_contents=resp.content)
     sheet = book.sheet_by_index(0)

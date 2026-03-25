@@ -1,13 +1,13 @@
-import requests
 from bs4 import BeautifulSoup
 
 from config import TDNET_BASE_URL, TDNET_LIST_URL
+from net import session
 
 
 def fetch_disclosures(date: str) -> list[dict]:
     """Fetch all disclosures for a given date (yyyymmdd format)."""
     first_url = TDNET_LIST_URL.format(page=1, date=date)
-    resp = requests.get(first_url, timeout=15)
+    resp = session.get(first_url, timeout=15)
     resp.encoding = "utf-8"
     soup = BeautifulSoup(resp.text, "html.parser")
 
@@ -35,7 +35,7 @@ def fetch_disclosures(date: str) -> list[dict]:
             page_soup = soup
         else:
             url = TDNET_LIST_URL.format(page=page, date=date)
-            r = requests.get(url, timeout=15)
+            r = session.get(url, timeout=15)
             r.encoding = "utf-8"
             page_soup = BeautifulSoup(r.text, "html.parser")
 
@@ -71,7 +71,7 @@ def _parse_page(soup: BeautifulSoup) -> list[dict]:
             elif cls == "kjTitle":
                 item["title"] = td.text.strip()
                 if td.a and td.a.get("href"):
-                    item["pdf"] = td.a["href"]
+                    item["pdf"] = td.a["href"].split("/")[-1]
             elif cls == "kjXbrl":
                 if td.a and td.a.get("href"):
                     item["xbrl"] = td.a["href"]

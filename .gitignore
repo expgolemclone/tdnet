@@ -11,6 +11,8 @@
 !static/*.js
 !static/*.css
 !ticker.csv
+!tests/
+!tests/*.py
 !hooks/
 !hooks/*.py
 !CLAUDE.md

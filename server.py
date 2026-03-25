@@ -1,11 +1,13 @@
 import re
+import threading
 from collections import OrderedDict
 from datetime import date, timedelta
+from urllib.parse import urlparse
 
-import requests
 from flask import Flask, jsonify, request, Response, send_from_directory
 
-from config import TDNET_BASE_URL, CACHE_MAX_SIZE, VALID_PERIODS, PERIOD_DAYS
+from config import TDNET_BASE_URL, TDNET_EXPECTED_HOST, CACHE_MAX_SIZE, VALID_PERIODS, PERIOD_DAYS
+from net import session
 from scraper import fetch_disclosures
 
 app = Flask(__name__, static_folder="static")
@@ -20,11 +22,21 @@ def no_cache_static(response):
 
 # LRU cache: date -> list of disclosures
 _cache: OrderedDict[str, list[dict]] = OrderedDict()
+_cache_lock = threading.Lock()
 
 _SAFE_PDF_NAME = re.compile(r"^[A-Za-z0-9_-]+\.pdf$")
 
 _ticker_filter: set[str] | None = None
 _exclude_tickers: set[str] = set()
+
+_init_date: str = ""
+_init_period: str = "day"
+
+
+def set_init_params(init_date: str, init_period: str) -> None:
+    global _init_date, _init_period
+    _init_date = init_date
+    _init_period = init_period
 
 
 def set_ticker_filter(tickers: set[str] | None) -> None:
@@ -49,22 +61,35 @@ def _apply_filter(items: list[dict]) -> list[dict]:
 
 
 def date_range(end_date_str: str, period: str) -> list[str]:
-    """Return list of yyyymmdd strings for the given period ending on end_date_str."""
+    """Return list of yyyymmdd strings (weekdays only) for the given period."""
     end = date(int(end_date_str[:4]), int(end_date_str[4:6]), int(end_date_str[6:8]))
-    days = PERIOD_DAYS.get(period, 1)
-    return [(end - timedelta(days=i)).strftime("%Y%m%d") for i in range(days)]
+    target = PERIOD_DAYS.get(period, 1)
+    result: list[str] = []
+    offset = 0
+    while len(result) < target:
+        d = end - timedelta(days=offset)
+        if d.weekday() < 5:  # Mon-Fri
+            result.append(d.strftime("%Y%m%d"))
+        offset += 1
+    return result
 
 
-def cache_set(date: str, items: list[dict]) -> None:
-    _cache[date] = items
-    _cache.move_to_end(date)
-    while len(_cache) > CACHE_MAX_SIZE:
-        _cache.popitem(last=False)
+def cache_set(date_key: str, items: list[dict]) -> None:
+    with _cache_lock:
+        _cache[date_key] = items
+        _cache.move_to_end(date_key)
+        while len(_cache) > CACHE_MAX_SIZE:
+            _cache.popitem(last=False)
 
 
 @app.route("/")
 def index():
     return send_from_directory("static", "viewer.html")
+
+
+@app.route("/api/init")
+def api_init():
+    return jsonify({"date": _init_date, "period": _init_period})
 
 
 @app.route("/api/list")
@@ -80,11 +105,14 @@ def api_list():
     dates = date_range(end_date, period)
     all_items: list[dict] = []
     for d in dates:
-        if d not in _cache:
-            cache_set(d, fetch_disclosures(d))
-        else:
-            _cache.move_to_end(d)
-        all_items.extend(_cache[d])
+        with _cache_lock:
+            if d in _cache:
+                _cache.move_to_end(d)
+                all_items.extend(_cache[d])
+                continue
+        items = fetch_disclosures(d)
+        cache_set(d, items)
+        all_items.extend(items)
 
     return jsonify(_apply_filter(all_items))
 
@@ -95,7 +123,9 @@ def proxy_pdf(filename):
         return "Not found", 404
 
     url = TDNET_BASE_URL + filename
-    resp = requests.get(url, timeout=30, stream=True)
+    if urlparse(url).hostname != TDNET_EXPECTED_HOST:
+        return "Not found", 404
+    resp = session.get(url, timeout=30, stream=True)
     if resp.status_code != 200:
         resp.close()
         return "Not found", 404

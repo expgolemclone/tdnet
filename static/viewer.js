@@ -40,7 +40,7 @@ function dateISO(d) {
     return `${y}-${m}-${day}`;
 }
 
-const PERIOD_SHIFT = { day: 1, week: 7, month: 31, year: 365 };
+const PERIOD_SHIFT = { day: 1, week: 7, month: 31, year: 365 };  // calendar days for UI shift
 
 function shiftDate(direction) {
     const d = new Date(datePicker.value);
@@ -61,6 +61,8 @@ async function fetchList(date, period) {
 let currentLoadTask = null;
 
 async function loadPdf(filename) {
+    window.scrollTo(0, 0);
+
     // Cancel any in-flight PDF load
     if (currentLoadTask) {
         currentLoadTask.destroy();
@@ -486,6 +488,16 @@ document.addEventListener("keydown", (e) => {
             e.preventDefault();
             showCmd();
             break;
+        case "G":
+            gotoFile(state.files.length);
+            break;
+        case "g":
+            if (lastKey === "g" && now - lastKeyTime < 500) {
+                gotoFile(1);
+                lastKey = "";
+                return;
+            }
+            break;
         case "y":
             if (lastKey === "y" && now - lastKeyTime < 500) {
                 copyToClipboard();
@@ -520,8 +532,21 @@ window.addEventListener("resize", () => {
 });
 
 // --- Init ---
-(function init() {
-    const today = new Date();
-    datePicker.value = dateISO(today);
-    loadDate(dateStr(today));
+(async function init() {
+    try {
+        const resp = await fetch("/api/init");
+        const data = await resp.json();
+        const d = data.date;
+        const iso = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+        datePicker.value = iso;
+        if (data.period) {
+            state.period = data.period;
+            periodSelect.value = data.period;
+        }
+        loadDate(d);
+    } catch {
+        const today = new Date();
+        datePicker.value = dateISO(today);
+        loadDate(dateStr(today));
+    }
 })();

@@ -11,6 +11,11 @@ dependencies = [
     "xlrd>=2.0,<3",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0,<9",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["."]
 

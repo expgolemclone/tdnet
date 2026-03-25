@@ -1,18 +1,16 @@
 import argparse
 import os
 import re
+import signal
 import subprocess
 import sys
+import time
 import webbrowser
 from datetime import date
 
-import truststore
-
-truststore.inject_into_ssl()
-
 from config import DEFAULT_PORT, VALID_PERIODS
 from segments import fetch_jpx_segments, load_segments, save_segments
-from server import app, cache_set, date_range, set_exclude_tickers, set_ticker_filter
+from server import app, cache_set, date_range, set_exclude_tickers, set_init_params, set_ticker_filter
 from scraper import fetch_disclosures
 
 
@@ -60,7 +58,16 @@ def kill_listeners(port: int) -> None:
     pids.discard(my_pid)
     for pid in pids:
         try:
-            os.kill(pid, 9)
+            if sys.platform == "win32":
+                os.kill(pid, 9)
+            else:
+                os.kill(pid, signal.SIGTERM)
+                time.sleep(0.5)
+                try:
+                    os.kill(pid, 0)  # check if still alive
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass  # already terminated
             print(f"Killed old server process (PID {pid})")
         except OSError:
             pass
@@ -149,6 +156,8 @@ def main():
             if etf_tickers:
                 set_exclude_tickers(etf_tickers)
                 print(f"Excluding {len(etf_tickers)} ETF/ETN tickers")
+
+    set_init_params(args.date, args.period)
 
     # Pre-fetch disclosure lists for the specified period
     dates = date_range(args.date, args.period)
