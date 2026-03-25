@@ -24,12 +24,9 @@ def _find_listeners_windows(port: int) -> set[int]:
         ).decode(errors="ignore")
     except (OSError, subprocess.CalledProcessError):
         return set()
-    pattern = re.compile(rf"LISTENING\s+(\d+)\s*$")
-    port_str = f":{port}"
+    pattern = re.compile(rf":{port}\s+\S+\s+LISTENING\s+(\d+)\s*$")
     pids: set[int] = set()
     for line in out.splitlines():
-        if port_str not in line:
-            continue
         m = pattern.search(line)
         if m:
             pids.add(int(m.group(1)))
@@ -40,7 +37,8 @@ def _find_listeners_unix(port: int) -> set[int]:
     """Find PIDs listening on *port* using lsof (Linux/macOS)."""
     try:
         out = subprocess.check_output(
-            ["lsof", "-i", f":{port}", "-t"], stderr=subprocess.DEVNULL,
+            ["lsof", "-i", f":{port}", "-t", "-sTCP:LISTEN"],
+            stderr=subprocess.DEVNULL,
         ).decode(errors="ignore")
     except (OSError, subprocess.CalledProcessError):
         return set()
