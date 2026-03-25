@@ -1,4 +1,7 @@
 import argparse
+import os
+import re
+import subprocess
 import sys
 import webbrowser
 from datetime import date
@@ -11,6 +14,33 @@ from config import DEFAULT_PORT, VALID_PERIODS
 from segments import fetch_jpx_segments, load_segments, save_segments
 from server import app, cache_set, date_range, set_exclude_tickers, set_ticker_filter
 from scraper import fetch_disclosures
+
+
+def kill_listeners(port: int) -> None:
+    """Kill processes listening on the given port (except ourselves)."""
+    my_pid = os.getpid()
+    try:
+        out = subprocess.check_output(
+            ["netstat", "-ano"], stderr=subprocess.DEVNULL,
+        ).decode(errors="ignore")
+    except (OSError, subprocess.CalledProcessError):
+        return
+    pattern = re.compile(rf"LISTENING\s+(\d+)\s*$")
+    port_str = f":{port}"
+    pids: set[int] = set()
+    for line in out.splitlines():
+        if port_str not in line:
+            continue
+        m = pattern.search(line)
+        if m:
+            pids.add(int(m.group(1)))
+    pids.discard(my_pid)
+    for pid in pids:
+        try:
+            os.kill(pid, 9)
+            print(f"Killed old server process (PID {pid})")
+        except OSError:
+            pass
 
 
 def load_tickers_from_csv(path: str) -> set[str]:
@@ -106,6 +136,8 @@ def main():
         cache_set(d, items)
         total += len(items)
     print(f"\rFetched {total} items over {len(dates)} day(s).     ")
+
+    kill_listeners(args.port)
 
     url = f"http://localhost:{args.port}"
     print(f"Starting server at {url}")
