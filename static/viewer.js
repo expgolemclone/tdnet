@@ -12,6 +12,7 @@ const state = {
     rendering: false,
     pendingRender: false,
     date: "",
+    period: "day",
     loadId: 0,
     dateLoadId: 0,
 };
@@ -22,6 +23,7 @@ const ctx = canvas.getContext("2d");
 const loading = $("#loading");
 const emptyMsg = $("#empty-msg");
 const datePicker = $("#date-picker");
+const periodSelect = $("#period-select");
 
 // --- Date helpers ---
 function dateStr(d) {
@@ -38,16 +40,19 @@ function dateISO(d) {
     return `${y}-${m}-${day}`;
 }
 
-function shiftDate(delta) {
+const PERIOD_SHIFT = { day: 1, week: 7, month: 31, year: 365 };
+
+function shiftDate(direction) {
     const d = new Date(datePicker.value);
+    const delta = direction * (PERIOD_SHIFT[state.period] || 1);
     d.setDate(d.getDate() + delta);
     datePicker.value = dateISO(d);
     loadDate(dateStr(d));
 }
 
 // --- API ---
-async function fetchList(date) {
-    const resp = await fetch(`/api/list?date=${date}`);
+async function fetchList(date, period) {
+    const resp = await fetch(`/api/list?date=${date}&period=${period}`);
     if (!resp.ok) return [];
     return resp.json();
 }
@@ -201,7 +206,7 @@ async function loadDate(date) {
     emptyMsg.style.display = "none";
     loading.style.display = "block";
 
-    const items = await fetchList(date);
+    const items = await fetchList(date, state.period);
 
     // A newer loadDate was called while we were fetching — discard
     if (myId !== state.dateLoadId) return;
@@ -498,6 +503,10 @@ document.addEventListener("keydown", (e) => {
 $("#prev-date").addEventListener("click", () => shiftDate(-1));
 $("#next-date").addEventListener("click", () => shiftDate(1));
 datePicker.addEventListener("change", () => {
+    loadDate(datePicker.value.replace(/-/g, ""));
+});
+periodSelect.addEventListener("change", () => {
+    state.period = periodSelect.value;
     loadDate(datePicker.value.replace(/-/g, ""));
 });
 

@@ -7,9 +7,9 @@ import truststore
 
 truststore.inject_into_ssl()
 
-from config import DEFAULT_PORT
+from config import DEFAULT_PORT, VALID_PERIODS
 from segments import fetch_jpx_segments, load_segments, save_segments
-from server import app, cache_set, set_exclude_tickers, set_ticker_filter
+from server import app, cache_set, date_range, set_exclude_tickers, set_ticker_filter
 from scraper import fetch_disclosures
 
 
@@ -71,6 +71,8 @@ def main():
                         help="Market segments to filter (e.g. プライム)")
     parser.add_argument("--fetch-segments", action="store_true",
                         help="Fetch segment data from JPX and save locally")
+    parser.add_argument("--period", choices=VALID_PERIODS, default="day",
+                        help="Period to fetch (day/week/month/year)")
     parser.add_argument("--all", action="store_true",
                         help="Show all disclosures (no filter)")
     args = parser.parse_args()
@@ -95,11 +97,15 @@ def main():
                 set_exclude_tickers(etf_tickers)
                 print(f"Excluding {len(etf_tickers)} ETF/ETN tickers")
 
-    # Pre-fetch the disclosure list for the specified date
-    print(f"Fetching disclosures for {args.date}...")
-    items = fetch_disclosures(args.date)
-    cache_set(args.date, items)
-    print(f"Found {len(items)} items.")
+    # Pre-fetch disclosure lists for the specified period
+    dates = date_range(args.date, args.period)
+    total = 0
+    for i, d in enumerate(dates):
+        print(f"\rFetching disclosures... ({i + 1}/{len(dates)})", end="", flush=True)
+        items = fetch_disclosures(d)
+        cache_set(d, items)
+        total += len(items)
+    print(f"\rFetched {total} items over {len(dates)} day(s).     ")
 
     url = f"http://localhost:{args.port}"
     print(f"Starting server at {url}")

@@ -1,10 +1,11 @@
 import re
 from collections import OrderedDict
+from datetime import date, timedelta
 
 import requests
 from flask import Flask, jsonify, request, Response, send_from_directory
 
-from config import TDNET_BASE_URL, CACHE_MAX_SIZE
+from config import TDNET_BASE_URL, CACHE_MAX_SIZE, VALID_PERIODS, PERIOD_DAYS
 from scraper import fetch_disclosures
 
 app = Flask(__name__, static_folder="static")
@@ -47,6 +48,13 @@ def _apply_filter(items: list[dict]) -> list[dict]:
     return result
 
 
+def date_range(end_date_str: str, period: str) -> list[str]:
+    """Return list of yyyymmdd strings for the given period ending on end_date_str."""
+    end = date(int(end_date_str[:4]), int(end_date_str[4:6]), int(end_date_str[6:8]))
+    days = PERIOD_DAYS.get(period, 1)
+    return [(end - timedelta(days=i)).strftime("%Y%m%d") for i in range(days)]
+
+
 def cache_set(date: str, items: list[dict]) -> None:
     _cache[date] = items
     _cache.move_to_end(date)
@@ -61,16 +69,24 @@ def index():
 
 @app.route("/api/list")
 def api_list():
-    date = request.args.get("date", "")
-    if not date or len(date) != 8:
+    end_date = request.args.get("date", "")
+    if not end_date or len(end_date) != 8:
         return jsonify({"error": "date param required (yyyymmdd)"}), 400
 
-    if date not in _cache:
-        cache_set(date, fetch_disclosures(date))
-    else:
-        _cache.move_to_end(date)
+    period = request.args.get("period", "day")
+    if period not in VALID_PERIODS:
+        return jsonify({"error": f"invalid period (choose from {VALID_PERIODS})"}), 400
 
-    return jsonify(_apply_filter(_cache[date]))
+    dates = date_range(end_date, period)
+    all_items: list[dict] = []
+    for d in dates:
+        if d not in _cache:
+            cache_set(d, fetch_disclosures(d))
+        else:
+            _cache.move_to_end(d)
+        all_items.extend(_cache[d])
+
+    return jsonify(_apply_filter(all_items))
 
 
 @app.route("/api/pdf/<filename>")

@@ -50,7 +50,8 @@ header#top-bar {
     background: #533483;
 }
 
-#date-picker {
+#date-picker,
+#period-select {
     background: #0f3460;
     color: #e0e0e0;
     border: 1px solid #533483;

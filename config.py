@@ -11,3 +11,11 @@ JPX_DATA_URL = (
 DEFAULT_PORT = 8080
 CACHE_MAX_SIZE = 10
 SEGMENTS_PATH = Path(__file__).parent / "segments.json"
+
+VALID_PERIODS = ("day", "week", "month", "year")
+PERIOD_DAYS = {
+    "day": 1,
+    "week": 7,
+    "month": 31,
+    "year": 365,
+}
