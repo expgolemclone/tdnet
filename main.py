@@ -16,15 +16,14 @@ from server import app, cache_set, date_range, set_exclude_tickers, set_ticker_f
 from scraper import fetch_disclosures
 
 
-def kill_listeners(port: int) -> None:
-    """Kill processes listening on the given port (except ourselves)."""
-    my_pid = os.getpid()
+def _find_listeners_windows(port: int) -> set[int]:
+    """Find PIDs listening on *port* using Windows netstat."""
     try:
         out = subprocess.check_output(
             ["netstat", "-ano"], stderr=subprocess.DEVNULL,
         ).decode(errors="ignore")
     except (OSError, subprocess.CalledProcessError):
-        return
+        return set()
     pattern = re.compile(rf"LISTENING\s+(\d+)\s*$")
     port_str = f":{port}"
     pids: set[int] = set()
@@ -34,6 +33,32 @@ def kill_listeners(port: int) -> None:
         m = pattern.search(line)
         if m:
             pids.add(int(m.group(1)))
+    return pids
+
+
+def _find_listeners_unix(port: int) -> set[int]:
+    """Find PIDs listening on *port* using lsof (Linux/macOS)."""
+    try:
+        out = subprocess.check_output(
+            ["lsof", "-i", f":{port}", "-t"], stderr=subprocess.DEVNULL,
+        ).decode(errors="ignore")
+    except (OSError, subprocess.CalledProcessError):
+        return set()
+    pids: set[int] = set()
+    for line in out.splitlines():
+        line = line.strip()
+        if line.isdigit():
+            pids.add(int(line))
+    return pids
+
+
+def kill_listeners(port: int) -> None:
+    """Kill processes listening on the given port (except ourselves)."""
+    my_pid = os.getpid()
+    if sys.platform == "win32":
+        pids = _find_listeners_windows(port)
+    else:
+        pids = _find_listeners_unix(port)
     pids.discard(my_pid)
     for pid in pids:
         try:
