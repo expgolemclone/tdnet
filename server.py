@@ -38,6 +38,7 @@ def set_exclude_tickers(tickers: set[str]) -> None:
 
 
 def _apply_filter(items: list[dict]) -> list[dict]:
+    print(f"[filter] ticker={('None' if _ticker_filter is None else len(_ticker_filter))}, exclude={len(_exclude_tickers)}, items={len(items)}")
     if _ticker_filter is None and not _exclude_tickers:
         return items
     result = items
