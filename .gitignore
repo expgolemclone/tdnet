@@ -1,4 +1,13 @@
-__pycache__/
-.venv/
-.playwright-mcp/
-segments.json
+# デフォルト全無視
+*
+
+# 許可
+!.gitignore
+!*.py
+!pyproject.toml
+!uv.lock
+!static/
+!static/*.html
+!static/*.js
+!static/*.css
+!ticker.csv
