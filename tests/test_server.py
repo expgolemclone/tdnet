@@ -43,7 +43,7 @@ class TestCacheSet:
 
     def test_eviction(self):
         for i in range(CACHE_MAX_SIZE + 3):
-            cache_set(f"2026010{i:02d}", [])
+            cache_set(f"202601{i + 1:02d}", [])
         with _cache_lock:
             assert len(_cache) == CACHE_MAX_SIZE
 

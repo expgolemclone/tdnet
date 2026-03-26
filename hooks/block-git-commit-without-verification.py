@@ -15,7 +15,7 @@ import sys
 
 
 def _is_git_commit(command: str) -> bool:
-    return "git commit" in command or "git " in command and "commit" in command
+    return "git commit" in command
 
 
 def main() -> None:
