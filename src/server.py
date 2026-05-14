@@ -2,15 +2,19 @@ import re
 import threading
 from collections import OrderedDict
 from datetime import date, timedelta
+from pathlib import Path
 from urllib.parse import urlparse
 
 from flask import Flask, jsonify, request, Response, send_from_directory
 
-from config import TDNET_BASE_URL, TDNET_EXPECTED_HOST, CACHE_MAX_SIZE, VALID_PERIODS, PERIOD_DAYS
-from net import session
-from scraper import fetch_disclosures
+from .config import TDNET_BASE_URL, TDNET_EXPECTED_HOST, CACHE_MAX_SIZE, VALID_PERIODS, PERIOD_DAYS
+from .net import session
+from .scraper import fetch_disclosures
 
-app = Flask(__name__, static_folder="static")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+STATIC_DIR = PROJECT_ROOT / "static"
+
+app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="/static")
 
 
 @app.after_request
@@ -84,7 +88,7 @@ def cache_set(date_key: str, items: list[dict]) -> None:
 
 @app.route("/")
 def index():
-    return send_from_directory("static", "viewer.html")
+    return send_from_directory(STATIC_DIR, "viewer.html")
 
 
 @app.route("/api/init")

@@ -3,7 +3,9 @@
 
 # 許可
 !.gitignore
-!*.py
+!main.py
+!src/
+!src/*.py
 !pyproject.toml
 !uv.lock
 !static/
@@ -13,8 +15,4 @@
 !ticker.csv
 !tests/
 !tests/*.py
-!hooks/
-!hooks/*.py
 !CLAUDE.md
-!.claude/
-!.claude/settings.json

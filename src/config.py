@@ -11,7 +11,8 @@ JPX_DATA_URL = (
 
 DEFAULT_PORT = 8080
 CACHE_MAX_SIZE = 10
-SEGMENTS_PATH = Path(__file__).parent / "segments.json"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SEGMENTS_PATH = PROJECT_ROOT / "segments.json"
 
 RETRY_TOTAL = 3
 RETRY_BACKOFF = 0.5

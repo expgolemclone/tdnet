@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup
 
-from scraper import _parse_page
+from src.scraper import _parse_page
 
 
 MOCK_HTML = """

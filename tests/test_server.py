@@ -1,5 +1,5 @@
-from server import date_range, cache_set, _apply_filter, _cache, _cache_lock
-from config import CACHE_MAX_SIZE
+from src.server import date_range, cache_set, _apply_filter, _cache, _cache_lock
+from src.config import CACHE_MAX_SIZE
 
 
 class TestDateRange:
@@ -54,7 +54,7 @@ class TestApplyFilter:
         assert _apply_filter(items) == items
 
     def test_ticker_filter(self):
-        from server import set_ticker_filter
+        from src.server import set_ticker_filter
         try:
             set_ticker_filter({"1234"})
             items = [{"code": "12340"}, {"code": "56780"}]
@@ -65,7 +65,7 @@ class TestApplyFilter:
             set_ticker_filter(None)
 
     def test_exclude_tickers(self):
-        from server import set_exclude_tickers
+        from src.server import set_exclude_tickers
         try:
             set_exclude_tickers({"5678"})
             items = [{"code": "12340"}, {"code": "56780"}]

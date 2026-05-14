@@ -1,7 +1,7 @@
 from bs4 import BeautifulSoup
 
-from config import TDNET_BASE_URL, TDNET_LIST_URL
-from net import session
+from .config import TDNET_BASE_URL, TDNET_LIST_URL
+from .net import session
 
 
 def fetch_disclosures(date: str) -> list[dict]:

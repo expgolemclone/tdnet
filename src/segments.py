@@ -3,8 +3,8 @@ from pathlib import Path
 
 import xlrd
 
-from config import JPX_DATA_URL, SEGMENTS_PATH
-from net import session
+from .config import JPX_DATA_URL, SEGMENTS_PATH
+from .net import session
 
 
 def fetch_jpx_segments() -> dict[str, str]:

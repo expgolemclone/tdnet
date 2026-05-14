@@ -6,7 +6,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from config import RETRY_TOTAL, RETRY_BACKOFF
+from .config import RETRY_TOTAL, RETRY_BACKOFF
 
 
 def create_session() -> requests.Session:
