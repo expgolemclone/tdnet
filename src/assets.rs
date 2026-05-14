@@ -188,7 +188,6 @@ main#viewer {
 #pdf-canvas {
     max-width: 100%;
     height: auto;
-    filter: invert(1) hue-rotate(180deg);
 }
 
 #loading,
@@ -963,3 +962,14 @@ window.addEventListener("resize", () => {
     }
 })();
 "###;
+
+#[cfg(test)]
+mod tests {
+    use super::STYLE_CSS;
+
+    #[test]
+    fn pdf_canvas_is_not_color_inverted() {
+        assert!(!STYLE_CSS.contains("invert("));
+        assert!(!STYLE_CSS.contains("hue-rotate"));
+    }
+}
