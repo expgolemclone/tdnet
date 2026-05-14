@@ -20,6 +20,11 @@ pub const VIEWER_HTML: &str = r###"<!DOCTYPE html>
                 <option value="month">月</option>
                 <option value="year">年</option>
             </select>
+            <select id="pdf-theme-select" title="PDF表示">
+                <option value="soft-dark">弱反転</option>
+                <option value="dark">反転</option>
+                <option value="light">標準</option>
+            </select>
         </div>
         <div id="file-info">
             <span id="file-index">-/-</span>
@@ -32,7 +37,11 @@ pub const VIEWER_HTML: &str = r###"<!DOCTYPE html>
 
     <main id="viewer">
         <div id="loading">読み込み中...</div>
-        <canvas id="pdf-canvas"></canvas>
+        <div id="pdf-page">
+            <div id="pdf-shell">
+                <canvas id="pdf-canvas"></canvas>
+            </div>
+        </div>
         <div id="empty-msg" style="display:none;">開示情報がありません</div>
     </main>
 
@@ -44,6 +53,7 @@ pub const VIEWER_HTML: &str = r###"<!DOCTYPE html>
             <kbd>o</kbd> 番号ジャンプ
             <kbd>gg</kbd><kbd>G</kbd> 先頭/末尾
             <kbd>yy</kbd> コピー
+            <kbd>i</kbd> 表示
             <kbd>:tree</kbd> 一覧
         </span>
     </footer>
@@ -129,7 +139,8 @@ header#top-bar {
 }
 
 #date-picker,
-#period-select {
+#period-select,
+#pdf-theme-select {
     background: #0f3460;
     color: #e0e0e0;
     border: 1px solid #533483;
@@ -185,9 +196,45 @@ main#viewer {
     position: relative;
 }
 
+#pdf-page {
+    width: 100%;
+    display: none;
+    justify-content: center;
+    padding: 0.5rem 0;
+}
+
+#pdf-shell {
+    display: inline-flex;
+    max-width: calc(100% - 1rem);
+    background: #111;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 0.6rem 1.8rem rgba(0, 0, 0, 0.45);
+    line-height: 0;
+}
+
 #pdf-canvas {
     max-width: 100%;
     height: auto;
+    display: block;
+    filter: var(--pdf-filter);
+}
+
+:root:not([data-pdf-theme]),
+:root[data-pdf-theme="soft-dark"] {
+    --pdf-filter: invert(0.92) hue-rotate(180deg) brightness(1.04) contrast(1.08);
+}
+
+:root[data-pdf-theme="dark"] {
+    --pdf-filter: invert(1) hue-rotate(180deg) contrast(1.08);
+}
+
+:root[data-pdf-theme="light"] {
+    --pdf-filter: none;
+}
+
+:root[data-pdf-theme="light"] #pdf-shell {
+    background: #fff;
+    border-color: rgba(0, 0, 0, 0.22);
 }
 
 #loading,
@@ -451,10 +498,28 @@ const state = {
 
 const canvas = $("#pdf-canvas");
 const ctx = canvas.getContext("2d");
+const pdfPage = $("#pdf-page");
 const loading = $("#loading");
 const emptyMsg = $("#empty-msg");
 const datePicker = $("#date-picker");
 const periodSelect = $("#period-select");
+const pdfThemeSelect = $("#pdf-theme-select");
+
+const PDF_THEMES = ["soft-dark", "dark", "light"];
+const PDF_THEME_STORAGE_KEY = "tdnet-pdf-theme";
+
+function setPdfTheme(theme) {
+    const nextTheme = PDF_THEMES.includes(theme) ? theme : "soft-dark";
+    document.documentElement.dataset.pdfTheme = nextTheme;
+    pdfThemeSelect.value = nextTheme;
+    localStorage.setItem(PDF_THEME_STORAGE_KEY, nextTheme);
+}
+
+function cyclePdfTheme() {
+    const current = document.documentElement.dataset.pdfTheme || "soft-dark";
+    const idx = PDF_THEMES.indexOf(current);
+    setPdfTheme(PDF_THEMES[(idx + 1) % PDF_THEMES.length]);
+}
 
 function dateStr(d) {
     const y = d.getFullYear();
@@ -499,7 +564,7 @@ async function loadPdf(filename) {
     const myId = ++state.loadId;
 
     loading.style.display = "block";
-    canvas.style.display = "none";
+    pdfPage.style.display = "none";
     updateUI();
 
     if (state.pdfDoc) {
@@ -532,7 +597,7 @@ async function loadPdf(filename) {
     state.pageNum = 1;
 
     loading.style.display = "none";
-    canvas.style.display = "block";
+    pdfPage.style.display = "flex";
 
     state.rendering = false;
     state.pendingRender = false;
@@ -625,7 +690,7 @@ async function loadDate(date) {
     state.date = date;
     state.files = [];
     state.fileIdx = 0;
-    canvas.style.display = "none";
+    pdfPage.style.display = "none";
     emptyMsg.style.display = "none";
     loading.style.display = "block";
 
@@ -919,6 +984,9 @@ document.addEventListener("keydown", (e) => {
                 return;
             }
             break;
+        case "i":
+            cyclePdfTheme();
+            break;
     }
 
     lastKey = e.key;
@@ -927,6 +995,7 @@ document.addEventListener("keydown", (e) => {
 
 $("#prev-date").addEventListener("click", () => shiftDate(-1));
 $("#next-date").addEventListener("click", () => shiftDate(1));
+pdfThemeSelect.addEventListener("change", () => setPdfTheme(pdfThemeSelect.value));
 datePicker.addEventListener("change", () => {
     loadDate(datePicker.value.replace(/-/g, ""));
 });
@@ -944,6 +1013,7 @@ window.addEventListener("resize", () => {
 });
 
 (async function init() {
+    setPdfTheme(localStorage.getItem(PDF_THEME_STORAGE_KEY) || "soft-dark");
     try {
         const resp = await fetch("/api/init");
         const data = await resp.json();
@@ -965,11 +1035,14 @@ window.addEventListener("resize", () => {
 
 #[cfg(test)]
 mod tests {
-    use super::STYLE_CSS;
+    use super::{STYLE_CSS, VIEWER_HTML, VIEWER_JS};
 
     #[test]
-    fn pdf_canvas_is_not_color_inverted() {
-        assert!(!STYLE_CSS.contains("invert("));
-        assert!(!STYLE_CSS.contains("hue-rotate"));
+    fn pdf_theme_modes_are_available() {
+        assert!(VIEWER_HTML.contains("pdf-theme-select"));
+        assert!(VIEWER_JS.contains("PDF_THEMES"));
+        assert!(STYLE_CSS.contains("filter: var(--pdf-filter);"));
+        assert!(STYLE_CSS.contains("data-pdf-theme=\"soft-dark\""));
+        assert!(STYLE_CSS.contains("--pdf-filter: none;"));
     }
 }
