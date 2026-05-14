@@ -3,16 +3,11 @@
 
 # 許可
 !.gitignore
-!main.py
+!Cargo.toml
+!Cargo.lock
 !src/
-!src/*.py
-!pyproject.toml
-!uv.lock
-!static/
-!static/*.html
-!static/*.js
-!static/*.css
+!src/*.rs
 !ticker.csv
 !tests/
-!tests/*.py
+!tests/*.rs
 !CLAUDE.md

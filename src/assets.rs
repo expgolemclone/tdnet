@@ -1,4 +1,437 @@
-pdfjsLib.GlobalWorkerOptions.workerSrc =
+pub const VIEWER_HTML: &str = r###"<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark">
+    <title>TDNet Viewer</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+    <header id="top-bar">
+        <div id="date-control">
+            <button id="prev-date" title="前日">&larr;</button>
+            <input type="date" id="date-picker">
+            <button id="next-date" title="翌日">&rarr;</button>
+            <select id="period-select">
+                <option value="day">日</option>
+                <option value="week">週</option>
+                <option value="month">月</option>
+                <option value="year">年</option>
+            </select>
+        </div>
+        <div id="file-info">
+            <span id="file-index">-/-</span>
+            <span id="file-time"></span>
+            <span id="file-code"></span>
+            <span id="file-name"></span>
+            <span id="file-title"></span>
+        </div>
+    </header>
+
+    <main id="viewer">
+        <div id="loading">読み込み中...</div>
+        <canvas id="pdf-canvas"></canvas>
+        <div id="empty-msg" style="display:none;">開示情報がありません</div>
+    </main>
+
+    <footer id="bottom-bar">
+        <span id="page-info">- / -</span>
+        <span id="keyhints">
+            <kbd>j</kbd><kbd>k</kbd> ページ送り
+            <kbd>h</kbd><kbd>l</kbd> ファイル切替
+            <kbd>o</kbd> 番号ジャンプ
+            <kbd>gg</kbd><kbd>G</kbd> 先頭/末尾
+            <kbd>yy</kbd> コピー
+            <kbd>:tree</kbd> 一覧
+        </span>
+    </footer>
+
+    <div id="copy-toast"></div>
+
+    <div id="goto-overlay" style="display:none;">
+        <input type="text" id="goto-input" placeholder="#">
+    </div>
+
+    <div id="cmd-overlay" style="display:none;">
+        <span id="cmd-prefix">:</span>
+        <input type="text" id="cmd-input">
+    </div>
+
+    <div id="tree-overlay" style="display:none;">
+        <div id="tree-header">
+            <span id="tree-title">開示一覧</span>
+            <span id="tree-count"></span>
+            <div id="tree-filter-box" style="display:none;">
+                <span>/</span>
+                <input type="text" id="tree-filter-input">
+            </div>
+        </div>
+        <div id="tree-body"></div>
+    </div>
+
+    <script src="/static/viewer.js"></script>
+</body>
+</html>
+"###;
+
+pub const STYLE_CSS: &str = r###":root {
+    color-scheme: dark;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: "Segoe UI", "Meiryo", sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+header#top-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.4rem 1rem;
+    background: #16213e;
+    border-bottom: 1px solid #0f3460;
+    flex-shrink: 0;
+    min-height: 2.4rem;
+}
+
+#date-control {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-shrink: 0;
+}
+
+#date-control button {
+    background: #0f3460;
+    color: #e0e0e0;
+    border: none;
+    padding: 0.2rem 0.5rem;
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 0.9rem;
+}
+
+#date-control button:hover {
+    background: #533483;
+}
+
+#date-picker,
+#period-select {
+    background: #0f3460;
+    color: #e0e0e0;
+    border: 1px solid #533483;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.85rem;
+    color-scheme: dark;
+}
+
+#file-info {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 0.9rem;
+}
+
+#file-index {
+    color: #e94560;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+#file-time {
+    color: #999;
+    flex-shrink: 0;
+}
+
+#file-code {
+    color: #53cfcf;
+    flex-shrink: 0;
+}
+
+#file-name {
+    color: #aaa;
+    flex-shrink: 0;
+}
+
+#file-title {
+    color: #e0e0e0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+main#viewer {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    overflow: auto;
+    background: #0a0a1a;
+    position: relative;
+}
+
+#pdf-canvas {
+    max-width: 100%;
+    height: auto;
+    filter: invert(1) hue-rotate(180deg);
+}
+
+#loading,
+#empty-msg {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #666;
+    font-size: 1.2rem;
+}
+
+#loading {
+    display: none;
+}
+
+footer#bottom-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.3rem 1rem;
+    background: #16213e;
+    border-top: 1px solid #0f3460;
+    flex-shrink: 0;
+    font-size: 0.85rem;
+}
+
+#page-info {
+    color: #e94560;
+    font-weight: bold;
+}
+
+#keyhints {
+    color: #666;
+}
+
+kbd {
+    background: #0f3460;
+    color: #53cfcf;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.8rem;
+    margin: 0 0.1rem;
+}
+
+#goto-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #16213e;
+    border: 1px solid #533483;
+    border-radius: 6px;
+    padding: 1rem;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+
+#goto-input {
+    background: #0f3460;
+    color: #e0e0e0;
+    border: 1px solid #533483;
+    padding: 0.4rem 0.6rem;
+    border-radius: 4px;
+    font-size: 1.2rem;
+    width: 6rem;
+    text-align: center;
+    outline: none;
+}
+
+#goto-input:focus {
+    border-color: #e94560;
+}
+
+#copy-toast {
+    position: fixed;
+    bottom: 3rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #533483;
+    color: #e0e0e0;
+    padding: 0.4rem 1.2rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 100;
+}
+
+#copy-toast.show {
+    opacity: 1;
+}
+
+#cmd-overlay {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #16213e;
+    border-top: 1px solid #0f3460;
+    display: flex;
+    align-items: center;
+    padding: 0.2rem 0.5rem;
+    z-index: 200;
+    font-family: monospace;
+    font-size: 0.95rem;
+}
+
+#cmd-prefix {
+    color: #e94560;
+    margin-right: 0.2rem;
+}
+
+#cmd-input {
+    background: transparent;
+    color: #e0e0e0;
+    border: none;
+    outline: none;
+    font-family: monospace;
+    font-size: 0.95rem;
+    flex: 1;
+}
+
+#tree-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 10, 26, 0.97);
+    z-index: 150;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#tree-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 1rem;
+    background: #16213e;
+    border-bottom: 1px solid #0f3460;
+    flex-shrink: 0;
+}
+
+#tree-title {
+    color: #e94560;
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+#tree-count {
+    color: #666;
+    font-size: 0.85rem;
+}
+
+#tree-filter-box {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-left: auto;
+    color: #e94560;
+    font-family: monospace;
+}
+
+#tree-filter-input {
+    background: #0f3460;
+    color: #e0e0e0;
+    border: 1px solid #533483;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.85rem;
+    outline: none;
+    width: 16rem;
+}
+
+#tree-filter-input:focus {
+    border-color: #e94560;
+}
+
+#tree-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.3rem 0;
+}
+
+.tree-row {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.25rem 1rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.tree-row:hover {
+    background: rgba(83, 52, 131, 0.3);
+}
+
+.tree-row.active {
+    background: rgba(233, 69, 96, 0.15);
+}
+
+.tree-row.selected {
+    background: #533483;
+}
+
+.tree-row .tr-idx {
+    color: #666;
+    width: 3rem;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.tree-row .tr-time {
+    color: #999;
+    width: 3.5rem;
+    flex-shrink: 0;
+}
+
+.tree-row .tr-code {
+    color: #53cfcf;
+    width: 4rem;
+    flex-shrink: 0;
+}
+
+.tree-row .tr-name {
+    color: #aaa;
+    width: 10rem;
+    flex-shrink: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tree-row .tr-title {
+    color: #e0e0e0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+"###;
+
+pub const VIEWER_JS: &str = r###"pdfjsLib.GlobalWorkerOptions.workerSrc =
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -17,7 +450,6 @@ const state = {
     dateLoadId: 0,
 };
 
-// --- DOM refs ---
 const canvas = $("#pdf-canvas");
 const ctx = canvas.getContext("2d");
 const loading = $("#loading");
@@ -25,7 +457,6 @@ const emptyMsg = $("#empty-msg");
 const datePicker = $("#date-picker");
 const periodSelect = $("#period-select");
 
-// --- Date helpers ---
 function dateStr(d) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -40,7 +471,7 @@ function dateISO(d) {
     return `${y}-${m}-${day}`;
 }
 
-const PERIOD_SHIFT = { day: 1, week: 7, month: 31, year: 365 };  // calendar days for UI shift
+const PERIOD_SHIFT = { day: 1, week: 7, month: 31, year: 365 };
 
 function shiftDate(direction) {
     const d = new Date(datePicker.value);
@@ -50,20 +481,17 @@ function shiftDate(direction) {
     loadDate(dateStr(d));
 }
 
-// --- API ---
 async function fetchList(date, period) {
     const resp = await fetch(`/api/list?date=${date}&period=${period}`);
     if (!resp.ok) return [];
     return resp.json();
 }
 
-// --- PDF loading ---
 let currentLoadTask = null;
 
 async function loadPdf(filename) {
     window.scrollTo(0, 0);
 
-    // Cancel any in-flight PDF load
     if (currentLoadTask) {
         currentLoadTask.destroy();
         currentLoadTask = null;
@@ -94,7 +522,6 @@ async function loadPdf(filename) {
         return;
     }
 
-    // A newer load was started while we were fetching — discard this result
     if (myId !== state.loadId) {
         doc.destroy();
         return;
@@ -123,8 +550,6 @@ async function renderPage() {
 
     try {
         const page = await state.pdfDoc.getPage(state.pageNum);
-
-        // Fit to viewport width
         const viewerWidth = $("#viewer").clientWidth - 16;
         const unscaled = page.getViewport({ scale: 1 });
         const scale = viewerWidth / unscaled.width;
@@ -147,7 +572,6 @@ async function renderPage() {
     }
 }
 
-// --- Navigation ---
 function nextPage() {
     if (state.pageNum < state.pageCount) {
         state.pageNum++;
@@ -176,7 +600,6 @@ function prevFile() {
     }
 }
 
-// --- UI update ---
 function updateUI() {
     const f = state.files[state.fileIdx];
     if (f) {
@@ -197,7 +620,6 @@ function updateUI() {
         : "- / -";
 }
 
-// --- Date loading ---
 async function loadDate(date) {
     const myId = ++state.dateLoadId;
 
@@ -210,7 +632,6 @@ async function loadDate(date) {
 
     const items = await fetchList(date, state.period);
 
-    // A newer loadDate was called while we were fetching — discard
     if (myId !== state.dateLoadId) return;
 
     state.files = items;
@@ -225,7 +646,6 @@ async function loadDate(date) {
     await loadPdf(items[0].pdf);
 }
 
-// --- Goto file by number ---
 const gotoOverlay = $("#goto-overlay");
 const gotoInput = $("#goto-input");
 
@@ -255,7 +675,6 @@ gotoInput.addEventListener("keydown", (e) => {
     }
 });
 
-// --- Copy to clipboard (text-first, image fallback) ---
 async function getPageText(pageNum) {
     const page = await state.pdfDoc.getPage(pageNum);
     const content = await page.getTextContent();
@@ -289,7 +708,6 @@ function showToast(msg) {
     setTimeout(() => el.classList.remove("show"), 1200);
 }
 
-// --- Command mode (vim-style :) ---
 const cmdOverlay = $("#cmd-overlay");
 const cmdInput = $("#cmd-input");
 
@@ -321,7 +739,6 @@ cmdInput.addEventListener("keydown", (e) => {
     }
 });
 
-// --- Tree overlay ---
 const treeOverlay = $("#tree-overlay");
 const treeBody = $("#tree-body");
 const treeCount = $("#tree-count");
@@ -433,12 +850,10 @@ treeFilterInput.addEventListener("keydown", (e) => {
     }
 });
 
-// --- Keyboard ---
 let lastKey = "";
 let lastKeyTime = 0;
 
 document.addEventListener("keydown", (e) => {
-    // Tree overlay key handling
     if (treeOpen && e.target !== treeFilterInput) {
         switch (e.key) {
             case "j":
@@ -511,7 +926,6 @@ document.addEventListener("keydown", (e) => {
     lastKeyTime = now;
 });
 
-// --- Date controls ---
 $("#prev-date").addEventListener("click", () => shiftDate(-1));
 $("#next-date").addEventListener("click", () => shiftDate(1));
 datePicker.addEventListener("change", () => {
@@ -522,7 +936,6 @@ periodSelect.addEventListener("change", () => {
     loadDate(datePicker.value.replace(/-/g, ""));
 });
 
-// --- Window resize ---
 let resizeTimer = 0;
 window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
@@ -531,7 +944,6 @@ window.addEventListener("resize", () => {
     }, 150);
 });
 
-// --- Init ---
 (async function init() {
     try {
         const resp = await fetch("/api/init");
@@ -550,3 +962,4 @@ window.addEventListener("resize", () => {
         loadDate(dateStr(today));
     }
 })();
+"###;
