@@ -3,28 +3,36 @@ use std::collections::HashSet;
 use anyhow::Result;
 use clap::Parser;
 use tdnet_viewer::cli::{
-    Args, kill_listeners, load_tickers_from_csv, open_browser, today_yyyymmdd,
+    Args, Command, ServeArgs, kill_listeners, load_tickers_from_csv, open_browser, today_yyyymmdd,
 };
-use tdnet_viewer::config::{DEFAULT_PORT, segments_path};
+use tdnet_viewer::config::segments_path;
 use tdnet_viewer::http_client::TdnetClient;
 use tdnet_viewer::segments::{Segments, fetch_jpx_segments, load_default_segments, save_segments};
-use tdnet_viewer::server::{AppState, date_range, serve};
+use tdnet_viewer::server::{AppState, date_range, serve_with_ready};
 use tdnet_viewer::tdnet_scraper::fetch_disclosures;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
-    let date = args.date.clone().unwrap_or_else(today_yyyymmdd);
     let client = TdnetClient::new()?;
 
-    if args.fetch_segments {
-        println!("Fetching segment data from JPX...");
-        let data = fetch_jpx_segments(&client).await?;
-        let path = segments_path();
-        save_segments(&data, &path)?;
-        println!("Saved {} entries to {}", data.len(), path.display());
-        return Ok(());
+    match args.command {
+        Command::Serve(args) => serve_app(args, client).await,
+        Command::FetchSegments => fetch_segments(client).await,
     }
+}
+
+async fn fetch_segments(client: TdnetClient) -> Result<()> {
+    println!("Fetching segment data from JPX...");
+    let data = fetch_jpx_segments(&client).await?;
+    let path = segments_path();
+    save_segments(&data, &path)?;
+    println!("Saved {} entries to {}", data.len(), path.display());
+    Ok(())
+}
+
+async fn serve_app(args: ServeArgs, client: TdnetClient) -> Result<()> {
+    let date = args.date.clone().unwrap_or_else(today_yyyymmdd);
 
     let segments = load_default_segments()?;
     let ticker_filter = build_ticker_filter(&args, &segments)?;
@@ -69,20 +77,20 @@ async fn main() -> Result<()> {
     }
     println!("\rFetched {total} items over {} day(s).     ", dates.len());
 
-    let port = if args.port == 0 {
-        DEFAULT_PORT
-    } else {
-        args.port
-    };
-    kill_listeners(port);
+    let port = args.port;
+    if args.kill_existing {
+        kill_listeners(port);
+    }
 
-    let url = format!("http://localhost:{port}");
-    println!("Starting server at {url}");
-    open_browser(&url);
-    serve(state, port).await
+    let url = format!("http://127.0.0.1:{port}");
+    serve_with_ready(state, port, || {
+        println!("Starting server at {url}");
+        open_browser(&url);
+    })
+    .await
 }
 
-fn build_ticker_filter(args: &Args, segments: &Segments) -> Result<Option<HashSet<String>>> {
+fn build_ticker_filter(args: &ServeArgs, segments: &Segments) -> Result<Option<HashSet<String>>> {
     if args.all {
         return Ok(None);
     }
@@ -97,7 +105,7 @@ fn build_ticker_filter(args: &Args, segments: &Segments) -> Result<Option<HashSe
         None
     } else {
         if segments.is_empty() {
-            anyhow::bail!("Error: segments.json not found. Run --fetch-segments first.");
+            anyhow::bail!("Error: segments.json not found. Run `fetch-segments` first.");
         }
         Some(
             segments

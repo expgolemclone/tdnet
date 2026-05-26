@@ -127,10 +127,18 @@ pub fn router(state: AppState) -> Router {
 }
 
 pub async fn serve(state: AppState, port: u16) -> Result<()> {
+    serve_with_ready(state, port, || ()).await
+}
+
+pub async fn serve_with_ready<F>(state: AppState, port: u16, on_ready: F) -> Result<()>
+where
+    F: FnOnce(),
+{
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .with_context(|| format!("failed to bind {addr}"))?;
+    on_ready();
     axum::serve(listener, router(state))
         .with_graceful_shutdown(shutdown_signal())
         .await
