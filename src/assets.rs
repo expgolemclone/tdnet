@@ -618,11 +618,19 @@ async function renderPage() {
         const unscaled = page.getViewport({ scale: 1 });
         const scale = viewerWidth / unscaled.width;
         const viewport = page.getViewport({ scale });
+        const outputScale = Math.min(Math.max(window.devicePixelRatio || 1, 1), 3);
 
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
+        canvas.height = Math.ceil(viewport.height * outputScale);
+        canvas.width = Math.ceil(viewport.width * outputScale);
+        canvas.style.height = `${viewport.height}px`;
+        canvas.style.width = `${viewport.width}px`;
 
-        await page.render({ canvasContext: ctx, viewport }).promise;
+        const renderContext = { canvasContext: ctx, viewport };
+        if (outputScale !== 1) {
+            renderContext.transform = [outputScale, 0, 0, outputScale, 0, 0];
+        }
+
+        await page.render(renderContext).promise;
     } catch (e) {
         console.error("Render failed:", e);
     }
@@ -1044,5 +1052,14 @@ mod tests {
         assert!(STYLE_CSS.contains("filter: var(--pdf-filter);"));
         assert!(STYLE_CSS.contains("data-pdf-theme=\"soft-dark\""));
         assert!(STYLE_CSS.contains("--pdf-filter: none;"));
+    }
+
+    #[test]
+    fn pdf_canvas_uses_hidpi_rendering() {
+        assert!(VIEWER_JS.contains("window.devicePixelRatio"));
+        assert!(VIEWER_JS.contains("Math.max(window.devicePixelRatio || 1, 1), 3"));
+        assert!(VIEWER_JS.contains("canvas.style.height"));
+        assert!(VIEWER_JS.contains("canvas.style.width"));
+        assert!(VIEWER_JS.contains("renderContext.transform"));
     }
 }
