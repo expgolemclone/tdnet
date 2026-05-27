@@ -498,10 +498,13 @@ const state = {
     period: "day",
     loadId: 0,
     dateLoadId: 0,
+    hasRenderedPageBitmap: false,
 };
 
 const canvas = $("#pdf-canvas");
 const ctx = canvas.getContext("2d");
+const pdfRenderCanvas = document.createElement("canvas");
+const pdfRenderCtx = pdfRenderCanvas.getContext("2d");
 const pdfPage = $("#pdf-page");
 const loading = $("#loading");
 const emptyMsg = $("#empty-msg");
@@ -533,8 +536,11 @@ function canvasFilterSupported() {
 
     const previousFilter = ctx.filter;
     try {
-        ctx.filter = "invert(1)";
-        return ctx.filter === "invert(1)";
+        return PDF_THEMES.every((theme) => {
+            const filter = PDF_THEME_DEFINITIONS[theme].canvasFilter;
+            ctx.filter = filter;
+            return filter === "none" ? ctx.filter === "none" : ctx.filter !== "none";
+        });
     } catch {
         return false;
     } finally {
@@ -546,7 +552,24 @@ function currentPdfCanvasFilter() {
     if (!CANVAS_FILTER_SUPPORTED) return "none";
 
     const current = document.documentElement.dataset.pdfTheme || "soft-dark";
-    return PDF_THEME_DEFINITIONS[current]?.canvasFilter || PDF_THEME_DEFINITIONS["soft-dark"].canvasFilter;
+    const definition = PDF_THEME_DEFINITIONS[current] || PDF_THEME_DEFINITIONS["soft-dark"];
+    return definition.canvasFilter;
+}
+
+function repaintPdfCanvas() {
+    if (!state.hasRenderedPageBitmap) return false;
+
+    ctx.save();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.filter = currentPdfCanvasFilter();
+    ctx.drawImage(pdfRenderCanvas, 0, 0);
+    ctx.restore();
+    return true;
+}
+
+function refreshPdfTheme() {
+    if (!state.pdfDoc) return;
+    if (!repaintPdfCanvas() && !state.rendering) renderPage();
 }
 
 function setPdfTheme(theme) {
@@ -554,7 +577,7 @@ function setPdfTheme(theme) {
     document.documentElement.dataset.pdfTheme = nextTheme;
     pdfThemeSelect.value = nextTheme;
     localStorage.setItem(PDF_THEME_STORAGE_KEY, nextTheme);
-    if (state.pdfDoc) renderPage();
+    refreshPdfTheme();
 }
 
 function cyclePdfTheme() {
@@ -612,6 +635,7 @@ async function loadPdf(filename) {
 
     loading.style.display = "block";
     pdfPage.style.display = "none";
+    state.hasRenderedPageBitmap = false;
     updateUI();
 
     if (state.pdfDoc) {
@@ -667,23 +691,23 @@ async function renderPage() {
         const viewport = page.getViewport({ scale });
         const outputScale = outputScaleForDpi(scale);
 
+        state.hasRenderedPageBitmap = false;
+
+        pdfRenderCanvas.height = Math.ceil(viewport.height * outputScale);
+        pdfRenderCanvas.width = Math.ceil(viewport.width * outputScale);
         canvas.height = Math.ceil(viewport.height * outputScale);
         canvas.width = Math.ceil(viewport.width * outputScale);
         canvas.style.height = `${viewport.height}px`;
         canvas.style.width = `${viewport.width}px`;
 
-        const renderContext = { canvasContext: ctx, viewport, background: "#ffffff" };
+        const renderContext = { canvasContext: pdfRenderCtx, viewport, background: "#ffffff" };
         if (outputScale !== 1) {
             renderContext.transform = [outputScale, 0, 0, outputScale, 0, 0];
         }
 
-        const previousFilter = ctx.filter;
-        ctx.filter = currentPdfCanvasFilter();
-        try {
-            await page.render(renderContext).promise;
-        } finally {
-            ctx.filter = previousFilter || "none";
-        }
+        await page.render(renderContext).promise;
+        state.hasRenderedPageBitmap = true;
+        repaintPdfCanvas();
     } catch (e) {
         console.error("Render failed:", e);
     }
@@ -751,6 +775,7 @@ async function loadDate(date) {
     state.date = date;
     state.files = [];
     state.fileIdx = 0;
+    state.hasRenderedPageBitmap = false;
     pdfPage.style.display = "none";
     emptyMsg.style.display = "none";
     loading.style.display = "block";
@@ -1104,6 +1129,10 @@ mod tests {
         assert!(VIEWER_JS.contains("PDF_THEMES"));
         assert!(VIEWER_JS.contains("canvasFilterSupported"));
         assert!(VIEWER_JS.contains("currentPdfCanvasFilter"));
+        assert!(VIEWER_JS.contains("pdfRenderCanvas"));
+        assert!(VIEWER_JS.contains("repaintPdfCanvas"));
+        assert!(VIEWER_JS.contains("canvasContext: pdfRenderCtx"));
+        assert!(VIEWER_JS.contains("drawImage(pdfRenderCanvas"));
         assert!(VIEWER_JS.contains("document.documentElement.dataset.pdfFilterMode"));
         assert!(VIEWER_JS.contains("background: \"#ffffff\""));
         assert!(STYLE_CSS.contains("filter: var(--pdf-css-filter, none);"));
