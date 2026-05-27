@@ -216,20 +216,24 @@ main#viewer {
     max-width: 100%;
     height: auto;
     display: block;
-    filter: var(--pdf-filter);
+    filter: var(--pdf-css-filter, none);
 }
 
-:root:not([data-pdf-theme]),
-:root[data-pdf-theme="soft-dark"] {
-    --pdf-filter: invert(0.92) hue-rotate(180deg) brightness(1.04) contrast(1.08);
+:root {
+    --pdf-css-filter: none;
 }
 
-:root[data-pdf-theme="dark"] {
-    --pdf-filter: invert(1) hue-rotate(180deg) contrast(1.08);
+:root[data-pdf-filter-mode="css"]:not([data-pdf-theme]),
+:root[data-pdf-filter-mode="css"][data-pdf-theme="soft-dark"] {
+    --pdf-css-filter: invert(0.92) hue-rotate(180deg) brightness(1.04) contrast(1.08);
 }
 
 :root[data-pdf-theme="light"] {
-    --pdf-filter: none;
+    --pdf-css-filter: none;
+}
+
+:root[data-pdf-filter-mode="css"][data-pdf-theme="dark"] {
+    --pdf-css-filter: invert(1) hue-rotate(180deg) contrast(1.08);
 }
 
 :root[data-pdf-theme="light"] #pdf-shell {
@@ -505,16 +509,52 @@ const datePicker = $("#date-picker");
 const periodSelect = $("#period-select");
 const pdfThemeSelect = $("#pdf-theme-select");
 
-const PDF_THEMES = ["soft-dark", "dark", "light"];
+const PDF_THEME_DEFINITIONS = {
+    "soft-dark": {
+        canvasFilter: "invert(0.92) hue-rotate(180deg) brightness(1.04) contrast(1.08)",
+    },
+    dark: {
+        canvasFilter: "invert(1) hue-rotate(180deg) contrast(1.08)",
+    },
+    light: {
+        canvasFilter: "none",
+    },
+};
+const PDF_THEMES = Object.keys(PDF_THEME_DEFINITIONS);
 const PDF_THEME_STORAGE_KEY = "tdnet-pdf-theme";
 const PDF_RASTER_DPI = 1200;
 const PDF_POINTS_PER_INCH = 72;
+const CANVAS_FILTER_SUPPORTED = canvasFilterSupported();
+
+document.documentElement.dataset.pdfFilterMode = CANVAS_FILTER_SUPPORTED ? "canvas" : "css";
+
+function canvasFilterSupported() {
+    if (!("filter" in ctx)) return false;
+
+    const previousFilter = ctx.filter;
+    try {
+        ctx.filter = "invert(1)";
+        return ctx.filter === "invert(1)";
+    } catch {
+        return false;
+    } finally {
+        ctx.filter = previousFilter || "none";
+    }
+}
+
+function currentPdfCanvasFilter() {
+    if (!CANVAS_FILTER_SUPPORTED) return "none";
+
+    const current = document.documentElement.dataset.pdfTheme || "soft-dark";
+    return PDF_THEME_DEFINITIONS[current]?.canvasFilter || PDF_THEME_DEFINITIONS["soft-dark"].canvasFilter;
+}
 
 function setPdfTheme(theme) {
     const nextTheme = PDF_THEMES.includes(theme) ? theme : "soft-dark";
     document.documentElement.dataset.pdfTheme = nextTheme;
     pdfThemeSelect.value = nextTheme;
     localStorage.setItem(PDF_THEME_STORAGE_KEY, nextTheme);
+    if (state.pdfDoc) renderPage();
 }
 
 function cyclePdfTheme() {
@@ -632,12 +672,18 @@ async function renderPage() {
         canvas.style.height = `${viewport.height}px`;
         canvas.style.width = `${viewport.width}px`;
 
-        const renderContext = { canvasContext: ctx, viewport };
+        const renderContext = { canvasContext: ctx, viewport, background: "#ffffff" };
         if (outputScale !== 1) {
             renderContext.transform = [outputScale, 0, 0, outputScale, 0, 0];
         }
 
-        await page.render(renderContext).promise;
+        const previousFilter = ctx.filter;
+        ctx.filter = currentPdfCanvasFilter();
+        try {
+            await page.render(renderContext).promise;
+        } finally {
+            ctx.filter = previousFilter || "none";
+        }
     } catch (e) {
         console.error("Render failed:", e);
     }
@@ -1056,9 +1102,14 @@ mod tests {
     fn pdf_theme_modes_are_available() {
         assert!(VIEWER_HTML.contains("pdf-theme-select"));
         assert!(VIEWER_JS.contains("PDF_THEMES"));
-        assert!(STYLE_CSS.contains("filter: var(--pdf-filter);"));
+        assert!(VIEWER_JS.contains("canvasFilterSupported"));
+        assert!(VIEWER_JS.contains("currentPdfCanvasFilter"));
+        assert!(VIEWER_JS.contains("document.documentElement.dataset.pdfFilterMode"));
+        assert!(VIEWER_JS.contains("background: \"#ffffff\""));
+        assert!(STYLE_CSS.contains("filter: var(--pdf-css-filter, none);"));
+        assert!(STYLE_CSS.contains("data-pdf-filter-mode=\"css\""));
         assert!(STYLE_CSS.contains("data-pdf-theme=\"soft-dark\""));
-        assert!(STYLE_CSS.contains("--pdf-filter: none;"));
+        assert!(STYLE_CSS.contains("--pdf-css-filter: none;"));
     }
 
     #[test]
