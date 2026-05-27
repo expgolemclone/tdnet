@@ -507,6 +507,8 @@ const pdfThemeSelect = $("#pdf-theme-select");
 
 const PDF_THEMES = ["soft-dark", "dark", "light"];
 const PDF_THEME_STORAGE_KEY = "tdnet-pdf-theme";
+const PDF_RASTER_DPI = 1200;
+const PDF_POINTS_PER_INCH = 72;
 
 function setPdfTheme(theme) {
     const nextTheme = PDF_THEMES.includes(theme) ? theme : "soft-dark";
@@ -519,6 +521,11 @@ function cyclePdfTheme() {
     const current = document.documentElement.dataset.pdfTheme || "soft-dark";
     const idx = PDF_THEMES.indexOf(current);
     setPdfTheme(PDF_THEMES[(idx + 1) % PDF_THEMES.length]);
+}
+
+function outputScaleForDpi(displayScale) {
+    const targetScale = PDF_RASTER_DPI / PDF_POINTS_PER_INCH / displayScale;
+    return Math.max(targetScale, window.devicePixelRatio || 1, 1);
 }
 
 function dateStr(d) {
@@ -618,7 +625,7 @@ async function renderPage() {
         const unscaled = page.getViewport({ scale: 1 });
         const scale = viewerWidth / unscaled.width;
         const viewport = page.getViewport({ scale });
-        const outputScale = Math.min(Math.max(window.devicePixelRatio || 1, 1), 3);
+        const outputScale = outputScaleForDpi(scale);
 
         canvas.height = Math.ceil(viewport.height * outputScale);
         canvas.width = Math.ceil(viewport.width * outputScale);
@@ -1056,8 +1063,10 @@ mod tests {
 
     #[test]
     fn pdf_canvas_uses_hidpi_rendering() {
+        assert!(VIEWER_JS.contains("PDF_RASTER_DPI = 1200"));
+        assert!(VIEWER_JS.contains("PDF_POINTS_PER_INCH = 72"));
+        assert!(VIEWER_JS.contains("outputScaleForDpi(scale)"));
         assert!(VIEWER_JS.contains("window.devicePixelRatio"));
-        assert!(VIEWER_JS.contains("Math.max(window.devicePixelRatio || 1, 1), 3"));
         assert!(VIEWER_JS.contains("canvas.style.height"));
         assert!(VIEWER_JS.contains("canvas.style.width"));
         assert!(VIEWER_JS.contains("renderContext.transform"));
