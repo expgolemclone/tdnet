@@ -1,0 +1,14 @@
+# デフォルト全無視
+*
+
+# 許可
+!.gitignore
+!Cargo.toml
+!Cargo.lock
+!README.md
+!src/
+!src/*.rs
+!ticker.csv
+!tests/
+!tests/*.rs
+!CLAUDE.md
